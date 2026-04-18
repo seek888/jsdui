@@ -35,8 +35,21 @@ jobs:
       - name: TypeScript check
         run: npx vue-tsc --noEmit
 
-      - name: Build
+      - name: Build (macOS)
+        if: matrix.os == 'macos-latest'
         run: npm run build
+        env:
+          CI: true
+
+      - name: Build (Windows)
+        if: matrix.os == 'windows-latest'
+        run: npm run build:win
+        env:
+          CI: true
+
+      - name: Build (Linux)
+        if: matrix.os == 'ubuntu-latest'
+        run: npm run build:linux
         env:
           CI: true
 
@@ -84,17 +97,37 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      - name: Build for all platforms
-        run: npm run build:all
+      - name: Download macOS artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: macos-app
+          path: dist-electron/mac
+
+      - name: Download Windows artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: windows-exe
+          path: dist-electron/win
+
+      - name: Download Linux artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: linux-appimage
+          path: dist-electron/linux
+
+      - name: List artifacts
+        run: |
+          echo "=== macOS ===" && ls -la dist-electron/mac/ 2>/dev/null || echo "No macOS artifacts"
+          echo "=== Windows ===" && ls -la dist-electron/win/ 2>/dev/null || echo "No Windows artifacts"
+          echo "=== Linux ===" && ls -la dist-electron/linux/ 2>/dev/null || echo "No Linux artifacts"
 
       - name: Create Release
         uses: softprops/action-gh-release@v1
         with:
           files: |
-            dist-electron/mac-arm64/*.zip
-            dist-electron/mac-arm64/*.dmg
-            dist-electron/win-unpacked/*.exe
-            dist-electron/linux-unpacked/*.AppImage
+            dist-electron/mac/**/*
+            dist-electron/win/**/*
+            dist-electron/linux/**/*
           draft: true
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
