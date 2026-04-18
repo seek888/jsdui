@@ -36,7 +36,14 @@
       }
     ],
     "icon": "build/icon.png",
-    "artifactName": "${productName}-${version}-win-${arch}.${ext}"
+    "artifactName": "${productName}-${version}-win-${arch}.${ext}",
+    "extraResources": [
+      {
+        "from": "node_modules/electron/dist/",
+        "to": "electron-dist",
+        "filter": ["ffmpeg.dll", "libEGL.dll", "libGLESv2.dll"]
+      }
+    ]
   },
   "nsis": {
     "oneClick": false,
