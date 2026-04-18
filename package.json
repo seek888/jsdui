@@ -1,0 +1,47 @@
+{
+  "name": "jsdui",
+  "version": "0.0.1",
+  "description": "JSDUI - Electron + Vue 3 Desktop UI Framework",
+  "main": "./out/main/index.js",
+  "type": "module",
+  "author": "JSDUI Team <team@jsdui.app>",
+  "scripts": {
+    "dev": "electron-vite dev",
+    "build": "electron-vite build && electron-builder --mac --dir",
+    "build:win": "electron-vite build && electron-builder --win --dir",
+    "build:linux": "electron-vite build && electron-builder --linux --dir",
+    "build:all": "electron-vite build && electron-builder -mwl",
+    "preview": "electron-vite preview",
+    "postinstall": "electron-builder install-app-deps"
+  },
+  "dependencies": {
+    "@guolao/vue-monaco-editor": "^1.5.4",
+    "@xterm/addon-clipboard": "^0.2.0",
+    "@xterm/addon-fit": "^0.10.0",
+    "@xterm/xterm": "^5.5.0",
+    "chokidar": "^5.0.0",
+    "electron-log": "^5.2.4",
+    "electron-store": "^11.0.0",
+    "electron-updater": "^6.3.9",
+    "highlight.js": "^11.11.1",
+    "markdown-it": "^14.1.1",
+    "naive-ui": "^2.40.1",
+    "pinia": "^2.2.8",
+    "vue": "^3.5.13",
+    "vue-router": "^4.6.4"
+  },
+  "devDependencies": {
+    "@electron-toolkit/preload": "^3.0.1",
+    "@electron-toolkit/tsconfig": "^1.0.1",
+    "@electron-toolkit/utils": "^4.0.0",
+    "@types/markdown-it": "^14.1.2",
+    "@types/node": "^25.6.0",
+    "@vitejs/plugin-vue": "^5.2.1",
+    "electron": "^28.3.3",
+    "electron-builder": "^25.1.8",
+    "electron-vite": "^5.0.0",
+    "typescript": "^5.7.3",
+    "vite": "^6.0.11",
+    "vue-tsc": "^2.2.0"
+  }
+}
