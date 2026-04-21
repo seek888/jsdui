@@ -1,6 +1,7 @@
 import { app, BrowserWindow, shell, ipcMain, session, globalShortcut } from 'electron'
 import { electronApp, optimizer, is } from '@electron-toolkit/utils'
 import { join } from 'path'
+import { existsSync } from 'fs'
 import log from 'electron-log/main.js'
 import { setupIpcHandlers } from './ipc'
 import { store } from './store'
@@ -50,6 +51,9 @@ function createWindow(): void {
     y?: number
   }
 
+  const preloadMjs = join(__dirname, '../preload/index.mjs')
+  const preloadJs = join(__dirname, '../preload/index.js')
+
   mainWindow = new BrowserWindow({
     width: bounds.width,
     height: bounds.height,
@@ -60,7 +64,8 @@ function createWindow(): void {
     show: false,
     autoHideMenuBar: false,
     webPreferences: {
-      preload: join(__dirname, '../preload/index.js'),
+      // Prefer ESM preload output and keep a compatibility fallback.
+      preload: existsSync(preloadMjs) ? preloadMjs : preloadJs,
       sandbox: true,
       contextIsolation: true,
       nodeIntegration: false,

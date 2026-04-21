@@ -1,6 +1,8 @@
-import { autoUpdater } from 'electron-updater'
+import updater from 'electron-updater'
 import { BrowserWindow } from 'electron'
 import log from 'electron-log/main.js'
+
+const { autoUpdater } = updater
 
 // Configure auto-updater logging
 autoUpdater.logger = log

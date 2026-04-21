@@ -2,6 +2,8 @@ import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
 
 export const useProjectStore = defineStore('project', () => {
+  const SKIP_ENV_CHECKS = import.meta.env.DEV
+
   // State
   const projectPath = ref<string | null>(null)
   const projectName = ref<string | null>(null)
@@ -19,6 +21,12 @@ export const useProjectStore = defineStore('project', () => {
 
   // Actions
   async function checkNode() {
+    if (SKIP_ENV_CHECKS) {
+      nodeStatus.value = 'installed'
+      nodeVersion.value = 'skipped (dev)'
+      return
+    }
+
     nodeStatus.value = 'checking'
     try {
       const result = await window.electronAPI.checkNodeVersion()
@@ -36,6 +44,12 @@ export const useProjectStore = defineStore('project', () => {
   }
 
   async function checkClaude() {
+    if (SKIP_ENV_CHECKS) {
+      claudeStatus.value = 'installed'
+      claudeVersion.value = 'skipped (dev)'
+      return
+    }
+
     claudeStatus.value = 'checking'
     try {
       const result = await window.electronAPI.checkClaudeVersion()

@@ -1,6 +1,6 @@
 import { ipcMain, shell, app } from 'electron'
-import { promises as fs, Stats } from 'fs'
-import { join, resolve, isAbsolute } from 'path'
+import { promises as fs, Stats, constants as fsConstants } from 'fs'
+import { join, resolve, isAbsolute, delimiter } from 'path'
 import { spawn, ChildProcess } from 'child_process'
 import chokidar, { FSWatcher } from 'chokidar'
 import { execFile } from 'child_process'
@@ -72,6 +72,89 @@ function broadcastError(
   }
   sender.send('app:error', classified)
   log.error('Broadcast error:', classified)
+}
+
+function buildCliEnv(): NodeJS.ProcessEnv {
+  const homeDir = process.env.HOME || process.env.USERPROFILE
+  const currentPath = process.env.PATH || process.env.Path || ''
+  const pathEntries = [
+    '/opt/homebrew/bin',
+    '/opt/homebrew/sbin',
+    '/usr/local/bin',
+    '/usr/local/sbin',
+    '/usr/bin',
+    '/bin',
+    homeDir ? join(homeDir, '.volta', 'bin') : null,
+    homeDir ? join(homeDir, 'bin') : null,
+    homeDir ? join(homeDir, '.local', 'bin') : null,
+    ...currentPath.split(delimiter)
+  ].filter((entry): entry is string => Boolean(entry))
+
+  const dedupedPath = Array.from(new Set(pathEntries)).join(delimiter)
+
+  if (process.platform === 'win32') {
+    return {
+      ...process.env,
+      PATH: dedupedPath,
+      Path: dedupedPath
+    }
+  }
+
+  return {
+    ...process.env,
+    PATH: dedupedPath
+  }
+}
+
+async function findExecutable(command: string, env: NodeJS.ProcessEnv): Promise<string | null> {
+  const rawPath = env.PATH || env.Path || ''
+  if (!rawPath) {
+    return null
+  }
+
+  const extensions =
+    process.platform === 'win32'
+      ? (env.PATHEXT || '.EXE;.CMD;.BAT;.COM').split(';')
+      : ['']
+
+  for (const dir of rawPath.split(delimiter)) {
+    if (!dir) {
+      continue
+    }
+
+    for (const ext of extensions) {
+      const suffix =
+        process.platform === 'win32' &&
+        ext &&
+        command.toLowerCase().endsWith(ext.toLowerCase())
+          ? ''
+          : ext
+      const candidate = join(dir, `${command}${suffix}`)
+
+      try {
+        await fs.access(candidate, fsConstants.X_OK)
+        return candidate
+      } catch {
+        continue
+      }
+    }
+  }
+
+  return null
+}
+
+function execFileText(file: string, args: string[], env: NodeJS.ProcessEnv): Promise<string> {
+  return new Promise((resolve, reject) => {
+    execFile(file, args, { shell: false, env }, (error, stdout, stderr) => {
+      if (error) {
+        const message = stderr || error.message
+        reject(new Error(message))
+        return
+      }
+
+      resolve(stdout.trim())
+    })
+  })
 }
 
 // ─── Command management ──────────────────────────────────────────────────────
@@ -308,8 +391,15 @@ export function setupIpcHandlers(): void {
   ipcMain.handle('gsd:execute', async (event, args: string[]) => {
     try {
       const gsdPath = join(app.getAppPath(), 'gsd-tools.cjs')
+      const env = buildCliEnv()
+      const nodePath = await findExecutable('node', env)
+
+      if (!nodePath) {
+        return { success: false, error: 'Node.js executable not found in PATH' }
+      }
+
       return new Promise((resolve) => {
-        execFile('node', [gsdPath, ...args], { shell: false }, (error, stdout, stderr) => {
+        execFile(nodePath, [gsdPath, ...args], { shell: false, env }, (error, stdout, stderr) => {
           if (error) {
             broadcastError(event.sender, error, `gsd:execute(${args.join(' ')})`)
             resolve({ success: false, error: stderr || error.message })
@@ -326,33 +416,44 @@ export function setupIpcHandlers(): void {
   })
 
   ipcMain.handle('gsd:checkNode', async () => {
-    return new Promise((resolve) => {
-      execFile('node', ['--version'], { shell: false }, (error, stdout) => {
-        if (error) {
-          resolve({ success: false, error: error.message })
-        } else {
-          resolve({ success: true, data: stdout.trim() })
-        }
-      })
-    })
+    const env = buildCliEnv()
+    const nodePath = await findExecutable('node', env)
+
+    if (!nodePath) {
+      log.info('Node.js check failed: executable not found in PATH')
+      return { success: false, error: 'Node.js executable not found in PATH' }
+    }
+
+    try {
+      const version = await execFileText(nodePath, ['--version'], env)
+      return { success: true, data: version }
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error)
+      log.info('Node.js check failed:', message)
+      return { success: false, error: message }
+    }
   })
 
   ipcMain.handle('gsd:checkClaude', async () => {
-    return new Promise((resolve) => {
-      execFile('which', ['claude'], { shell: false }, (error, stdout) => {
-        if (error || !stdout.trim()) {
-          resolve({ success: true, data: null })
-        } else {
-          execFile('claude', ['--version'], { shell: false }, (err2, ver) => {
-            if (err2) {
-              resolve({ success: true, data: null })
-            } else {
-              resolve({ success: true, data: ver.trim() })
-            }
-          })
-        }
-      })
-    })
+    const env = buildCliEnv()
+    const candidates = ['claude', 'gsd']
+
+    for (const command of candidates) {
+      const executable = await findExecutable(command, env)
+      if (!executable) {
+        continue
+      }
+
+      try {
+        const version = await execFileText(executable, ['--version'], env)
+        return { success: true, data: version || `${command} (unknown version)` }
+      } catch {
+        return { success: true, data: `${command} (unknown version)` }
+      }
+    }
+
+    log.info('Claude CLI not found')
+    return { success: true, data: null }
   })
 
   // ── Settings ───────────────────────────────────────────────────────────────
